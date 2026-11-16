@@ -1,52 +1,100 @@
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-@import "tailwindcss";
-@import "flowbite/src/themes/default";
-@plugin "flowbite/plugin";
-@source "../node_modules/flowbite";
 
-html{
-  scroll-behavior: smoith;
+/* 01. Global design variables */
+:root {
+  font-family: 'DM Sans', sans-serif;
+
+  --primary: #176D68;
+  --primary-dark: #105A55;
+  --primary-container: #E4F2EF;
+
+  --background: #F5F7F6;
+  --surface: #FFFFFF;
+  --surface-soft: #F0F4F2;
+
+  --text-primary: #202B29;
+  --text-secondary: #71807C;
+
+  --success: #39856F;
+  --warning: #D69A42;
+  --error: #C65D5D;
 }
-body {
-  user-select: none;
-  font-family: 'Comfortaa';
- }
+
+/* 02. Base styles */
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
 
 @font-face {
   font-family: 'Comfortaa';
-  src: url("Comfortaa-VariableFont_wght.ttf") format('truetype');
+  src: url("Poppins-Regular.ttf") format('truetype');
 	font-weight: normal;
 	font-style: normal;
 }
 
-.overflow-y-auto::-webkit-scrollbar{
-  display: none;
-}
-.overflow-x-auto::-webkit-scrollbar{
-  display: none;
-}
-
- input:focus {
-  outline: none ;
+body {
+  margin: 0;
+  min-width: 320px;
+  background: var(--background);
+  color: var(--text-primary);
+  font-family: 'DM Sans', sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-.bg-grid{
-  background-image: linear-gradient(to right, rgba(17, 17, 17, 0.05) 1px, transparent 0.1px), linear-gradient(to bottom, rgba(17, 17, 17, 0.05) 1px, transparent 0.1px);
-  background-size: 50px 50px;
+
+
+/* 03. Heading typography */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  margin: 0;
 }
-@layer utilities {
-  .no-scrollbar::-webkit-scrollbar {
-    display: none;
+
+/* 04. Form elements */
+button, input, textarea, select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+/* 05. Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #CBD8D3;
+  border-radius: 20px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 06. Reusable surfaces */
+.surface {
+  background: var(--surface);
+  border-radius: 20px;
+}
+
+.text-muted {
+  color: var(--text-secondary);
+}
+
+/* 07. Mobile adjustments */
+@media (max-width: 640px) {
+  body {
+    font-size: 14px;
   }
-  .no-scrollbar {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
 }
-
-
-@custom-variant dark (&:where(.dark, .dark *))
-
-

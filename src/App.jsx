@@ -1,67 +1,117 @@
-import React, { useContext,lazy,Suspense } from 'react'
-const Navbar = lazy(() => import('./components/Navbar.jsx'))
-import { Route, Routes } from 'react-router-dom'
-import HomePage from './pages/HomePage.jsx'
-import AdminPage from './pages/AdminPage.jsx'
-import Notify from './components/Notify.jsx'
-import { all_provider } from './components/ContextProvider.jsx'
-import MemberData from './pages/MemberData.jsx'
-import NewAttendance from './pages/NewAttendance.jsx'
-import AllAttendance from './pages/AllAttendance.jsx'
-import './index.css'
-import AnimatedBox from "./components/AnimatedBox"
 
-const App = () => {
-  const {notifystatus} = useContext(all_provider)
+import React, { Suspense, lazy } from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
+
+import { AuthProvider } from "./context/AuthContext";
+import ProtectedRoute from "./components/ProtectedRoute";
+import AdminProtectedRoute from "./components/AdminProtectedRoute";
+import { ProfileProvider } from "./context/ProfileContext";
+
+const LoginSignIn = lazy(() => import("./pages/LoginSignIn.jsx"));
+const AdminLogin = lazy(() => import("./pages/AdminLogin.jsx"));
+const Home = lazy(() => import("./pages/Home.jsx"));
+const Classes = lazy(() => import("./pages/Classes.jsx"));
+const ClassDetails = lazy(() => import("./pages/ClassDetails.jsx"));
+const Materials = lazy(() => import("./pages/Materials.jsx"));
+const Schedule = lazy(() => import("./pages/Schedule.jsx"));
+const Profile = lazy(() => import("./pages/Profile.jsx"));
+const Tutorials = lazy(() => import("./pages/Tutorials.jsx"));
+const BestPractices = lazy(() => import("./pages/BestPractices.jsx"));
+const Certifications = lazy(() => import("./pages/Certifications.jsx"));
+const Events = lazy(() => import("./pages/Events.jsx"));
+const Community = lazy(() => import("./pages/Community.jsx"));
+const Settings = lazy(() => import("./pages/Settings.jsx"));
+const AnnouncementDetails = lazy(() => import("./pages/AnnouncementDetails.jsx"));
+const Notifications = lazy(() =>
+  import("./pages/Notifications.jsx")
+);
+const Announcements = lazy(() =>
+  import("./pages/Announcements.jsx")
+);
+
+const StudentLayout = lazy(() =>
+  import("./layouts/StudentLayout.jsx")
+);
+
+const AdminDashboard = lazy(() =>
+  import("./admin/AdminDashboard.jsx")
+);
+
+const RecentActivity = lazy(() => import("./pages/RecentActivity.jsx"));
+const Bookmarks = lazy(() => import("./pages/Bookmarks.jsx"));
+
+const AdminLayout = lazy(() => import("./layouts/AdminLayout.jsx"));
+const ManageStudents = lazy(() => import("./admin/ManageStudents.jsx"));
+const ManageClasses = lazy(() => import("./admin/ManageClasses.jsx"));
+const ManageMaterials = lazy(() => import("./admin/ManageMaterials.jsx"));
+const ManageAnnouncements = lazy(() => import("./admin/ManageAnnouncements.jsx"));
+const ManageSchedule = lazy(() => import("./admin/ManageSchedule.jsx"));
+const ManageCourses = lazy(() => import("./admin/ManageCourses.jsx"));
+const ManageTimetable = lazy(() => import("./admin/ManageTimetable.jsx"));
+
+export default function App() {
   return (
-    <>
-      <Suspense fallback={<AnimatedBox/>}>
-      <Navbar/>
-      </Suspense>
-      
-      {notifystatus.show == true && 
-      <Notify/>}
-      <div className="bg-grid bg-neutral-900 mt-[50px]">
-        <Routes>
-          <Route path='/' element={
-          <Suspense fallback={<AnimatedBox/>}>
-          <HomePage/>
-          </Suspense>
-            } />
-          
-          <Route path='/admin' element={
-          <Suspense fallback={<AnimatedBox/>}>
-          <AdminPage/>
-          </Suspense>
-            } />
-          
-          <Route path='/memberdata' element={
-          <Suspense fallback={<AnimatedBox/>}>
-          <MemberData/>
-          </Suspense>
-          } />
-          
-          <Route path='/newattendance' element={
-          <Suspense fallback={<AnimatedBox/>}>
-          <NewAttendance/>
-          </Suspense>
-          } />
-          
-          <Route path='/allattendance' element={
-          <Suspense fallback={<AnimatedBox/>}>
-          <AllAttendance/>
-          </Suspense>
-            } />
-          
-          <Route path='/memberdata' element={
-          <Suspense fallback={<AnimatedBox/>}>
-          <MemberData/>
-          </Suspense>
-            } />
-        </Routes>
-      </div>
-    </>
-  )
-}
+    <Suspense
+      fallback={
+        <div className="min-h-screen grid place-items-center bg-[#F5F8F6]">
+          <span className="font-semibold text-[#176D68]">
+            OutliersSource
+          </span>
+        </div>
+      }
+    >
+      <AuthProvider>
+        <ProfileProvider>
+        
+      <Routes>
+        {/* Authentication */}
+        <Route path="/sign" element={<LoginSignIn />} />
+        <Route path="/admin/login" element={<AdminLogin />} />
 
-export default App
+        <Route element={<ProtectedRoute />}>
+        {/* Student portal — shared layout */}
+        <Route element={<StudentLayout />}>
+          <Route path="/home" element={<Home />} />
+          <Route path="/courses" element={<Classes />} />
+          <Route path="/courses/:id" element={<ClassDetails />} />
+          <Route path="/materials" element={<Materials />} />
+          <Route path="/announcements" element={<Announcements />} />
+          <Route path="/schedule" element={<Schedule />} />
+          <Route path="/notifications" element={<Notifications />} />
+          <Route path="/recent-activity" element={<RecentActivity />} />
+          <Route path="/bookmarks" element={<Bookmarks />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/tutorials" element={<Tutorials />} />
+          <Route path="/best-practices" element={<BestPractices />} />
+          <Route path="/certifications" element={<Certifications />} />
+          <Route path="/events" element={<Events />} />
+          <Route path="/community" element={<Community />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/announcements/:id" element={<AnnouncementDetails />} />
+        </Route>
+        </Route>
+        
+        <Route element={<AdminProtectedRoute />}>
+          <Route path="/admin" element={<AdminLayout />}>
+          <Route index element={<Navigate to="/admin/dashboard" replace />} />
+          <Route path="dashboard" element={<AdminDashboard />} />
+          <Route path="students" element={<ManageStudents />} />
+          <Route path="classes" element={<ManageClasses />} />
+          <Route path="materials" element={<ManageMaterials />} />
+          <Route path="announcements" element={<ManageAnnouncements />} />
+          <Route path="schedule" element={<ManageSchedule />} />
+          <Route path="/admin/courses" element={<ManageCourses />}/>
+          <Route path="/admin/timetable" element={<ManageTimetable />} />
+          </Route>
+        </Route>
+      
+
+        <Route path="/" element={<Navigate to="/sign" replace />} />
+        <Route path="*" element={<Navigate to="/sign" replace />} />
+      </Routes>
+        </ProfileProvider>
+        </AuthProvider>
+        
+    </Suspense>
+  );
+}
