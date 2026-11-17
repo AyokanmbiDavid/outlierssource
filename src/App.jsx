@@ -6,6 +6,8 @@ import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminProtectedRoute from "./components/AdminProtectedRoute";
 import { ProfileProvider } from "./context/ProfileContext";
+import NotificationPanel from "./components/NotificationPanel";
+
 
 const LoginSignIn = lazy(() => import("./pages/LoginSignIn.jsx"));
 const AdminLogin = lazy(() => import("./pages/AdminLogin.jsx"));
@@ -15,12 +17,7 @@ const ClassDetails = lazy(() => import("./pages/ClassDetails.jsx"));
 const Materials = lazy(() => import("./pages/Materials.jsx"));
 const Schedule = lazy(() => import("./pages/Schedule.jsx"));
 const Profile = lazy(() => import("./pages/Profile.jsx"));
-const Tutorials = lazy(() => import("./pages/Tutorials.jsx"));
-const BestPractices = lazy(() => import("./pages/BestPractices.jsx"));
-const Certifications = lazy(() => import("./pages/Certifications.jsx"));
-const Events = lazy(() => import("./pages/Events.jsx"));
-const Community = lazy(() => import("./pages/Community.jsx"));
-const Settings = lazy(() => import("./pages/Settings.jsx"));
+const Events = lazy(() => import("./pages/Events.jsx"));const Settings = lazy(() => import("./pages/Settings.jsx"));
 const AnnouncementDetails = lazy(() => import("./pages/AnnouncementDetails.jsx"));
 const Notifications = lazy(() =>
   import("./pages/Notifications.jsx")
@@ -36,9 +33,6 @@ const StudentLayout = lazy(() =>
 const AdminDashboard = lazy(() =>
   import("./admin/AdminDashboard.jsx")
 );
-
-const RecentActivity = lazy(() => import("./pages/RecentActivity.jsx"));
-const Bookmarks = lazy(() => import("./pages/Bookmarks.jsx"));
 
 const AdminLayout = lazy(() => import("./layouts/AdminLayout.jsx"));
 const ManageStudents = lazy(() => import("./admin/ManageStudents.jsx"));
@@ -77,15 +71,10 @@ export default function App() {
           <Route path="/materials" element={<Materials />} />
           <Route path="/announcements" element={<Announcements />} />
           <Route path="/schedule" element={<Schedule />} />
+         <Route path="/announcements" element={<Announcements />} />
           <Route path="/notifications" element={<Notifications />} />
-          <Route path="/recent-activity" element={<RecentActivity />} />
-          <Route path="/bookmarks" element={<Bookmarks />} />
           <Route path="/profile" element={<Profile />} />
-          <Route path="/tutorials" element={<Tutorials />} />
-          <Route path="/best-practices" element={<BestPractices />} />
-          <Route path="/certifications" element={<Certifications />} />
           <Route path="/events" element={<Events />} />
-          <Route path="/community" element={<Community />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/announcements/:id" element={<AnnouncementDetails />} />
         </Route>

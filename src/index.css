@@ -24,6 +24,16 @@
   --warning: #D69A42;
   --error: #C65D5D;
 }
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateX(110%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
 
 /* 02. Base styles */
 * {

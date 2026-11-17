@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -20,29 +20,24 @@ import {
 } from "lucide-react";
 
 import { useAuth } from "../context/AuthContext";
+import { supabase } from "../services/supabase";
 
 const navigation = [
   {
     title: "MAIN MENU",
     items: [
       { name: "Home", path: "/home", icon: LayoutDashboard },
-      { name: "Bookmarks", path: "/bookmarks", icon: Bookmark },
       { name: "Courses", path: "/courses", icon: BookOpen },
       { name: "Tutorials", path: "/tutorials", icon: GraduationCap },
-      { name: "Best Practices", path: "/best-practices", icon: Lightbulb },
-      { name: "Certifications", path: "/certifications", icon: Award },
       { name: "Schedule", path: "/schedule", icon: CalendarDays },
-      { name: "Recent Activity", path: "/recent-activity", icon: Activity },
-      { name: "Notifications", path: "/notifications", icon: Bell },
-    ],
+      { name: "Announcements", path: "/announcements", icon: Bell },
+       ],
   },
   {
     title: "EXPLORE",
     items: [
       { name: "Resources", path: "/materials", icon: FolderOpen },
-      { name: "Events", path: "/events", icon: CalendarDays },
-      { name: "Community", path: "/community", icon: Users },
-      { name: "My Profile", path: "/profile", icon: UserRound },
+       { name: "My Profile", path: "/profile", icon: UserRound },
     ],
   },
 ];
@@ -57,6 +52,58 @@ export default function Sidebar({
 
   const [signingOut, setSigningOut] = useState(false);
   const [logoutError, setLogoutError] = useState("");
+  const [scheduleHasUpdates, setScheduleHasUpdates] = useState(false);
+
+  // Check whether timetable information exists.
+  const checkScheduleUpdates = useCallback(async () => {
+    const { count, error } = await supabase
+      .from("class_timetable")
+      .select("id", { count: "exact", head: true });
+
+    if (!error) {
+      setScheduleHasUpdates((count || 0) > 0);
+    }
+  }, []);
+
+  // Initial check and realtime timetable monitoring.
+  useEffect(() => {
+    checkScheduleUpdates();
+
+    const channel = supabase
+      .channel("sidebar-schedule-notifications")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "class_timetable",
+        },
+        () => {
+          setScheduleHasUpdates(true);
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "courses",
+        },
+        () => {
+          setScheduleHasUpdates(true);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [checkScheduleUpdates]);
+
+  const handleScheduleClick = () => {
+    setScheduleHasUpdates(false);
+    onClose?.();
+  };
 
   const handleLogout = async () => {
     if (signingOut) return;
@@ -90,9 +137,11 @@ export default function Sidebar({
           h-screen w-[260px] shrink-0
           bg-white flex flex-col
           transition-transform duration-300
-          ${open
-            ? "translate-x-0"
-            : "-translate-x-full lg:translate-x-0"}
+          ${
+            open
+              ? "translate-x-0"
+              : "-translate-x-full lg:translate-x-0"
+          }
         `}
       >
         {/* Brand */}
@@ -132,14 +181,21 @@ export default function Sidebar({
               <div className="space-y-1">
                 {group.items.map((item) => {
                   const Icon = item.icon;
-                  const hasNew = newPaths.includes(item.path);
+
+                  const hasNew =
+                    newPaths.includes(item.path) ||
+                    (item.path === "/schedule" && scheduleHasUpdates);
 
                   return (
                     <NavLink
                       key={item.path}
                       to={item.path}
                       end={item.path === "/home"}
-                      onClick={onClose}
+                      onClick={
+                        item.path === "/schedule"
+                          ? handleScheduleClick
+                          : onClose
+                      }
                       className={({ isActive }) => `
                         flex items-center gap-3
                         px-3 py-3 rounded-xl
@@ -160,9 +216,9 @@ export default function Sidebar({
 
                       {hasNew && (
                         <span
-                          className="w-2 h-2 rounded-full bg-red-500 shrink-0"
-                          aria-label="New information"
-                          title="New information"
+                          className="w-2 h-2 rounded-full bg-red-500 shrink-0 animate-pulse"
+                          aria-label="New information available"
+                          title="New timetable information"
                         />
                       )}
                     </NavLink>

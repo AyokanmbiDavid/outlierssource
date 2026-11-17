@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { LazyMotion, domAnimation, m } from "framer-motion";
+import { useNotifications } from "../context/NotificationContext";
 
 import {
   ShieldCheck,
@@ -18,6 +19,7 @@ import {
 import { supabase } from "../services/supabase";
 
 export default function AdminLogin() {
+  const { notify } = useNotifications();
   const navigate = useNavigate();
 
   const [showPassword, setShowPassword] = useState(false);
@@ -37,87 +39,70 @@ export default function AdminLogin() {
   };
 
   
+
 const handleSubmit = async (e) => {
   e.preventDefault();
   setMessage("");
 
   if (!form.email.trim() || !form.password) {
-    setMessage("Enter your administrator email and password.");
+    const msg = "Enter your administrator email and password.";
+    setMessage(msg);
+    notify(msg, "warning", { title: "Missing details" });
     return;
   }
 
   setLoading(true);
 
   try {
-    // Step 1: Authenticate
     const { data, error } = await supabase.auth.signInWithPassword({
       email: form.email.trim(),
       password: form.password
     });
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
 
-    console.log("Authenticated user ID:", data.user.id);
-
-    // Step 2: Fetch the user's profile
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("id, role")
       .eq("id", data.user.id)
       .maybeSingle();
 
-    // Step 3: Handle database errors separately
     if (profileError) {
-      console.error("PROFILE QUERY ERROR:", profileError);
-
-      setMessage(
-        `Profile lookup failed: ${profileError.message}`
-      );
-
       await supabase.auth.signOut();
-      return;
+      throw new Error(`Profile lookup failed: ${profileError.message}`);
     }
 
-    // Step 4: Check whether a profile exists
     if (!profile) {
-      console.error("No profile found for:", data.user.id);
-
-      setMessage("No profile was found for this administrator account.");
-
       await supabase.auth.signOut();
-      return;
+      throw new Error("No profile was found for this administrator account.");
     }
 
-    console.log("Retrieved profile:", profile);
-
-    // Step 5: Verify administrator role
     if (String(profile.role).trim().toLowerCase() !== "admin") {
-      setMessage(
-        `Access denied. Your current role is: ${profile.role}`
-      );
-
       await supabase.auth.signOut();
-      return;
+      throw new Error("Access denied. This account is not an administrator.");
     }
 
-    // Step 6: Successful admin login
+    notify("Welcome to your administration workspace.", "success", {
+      title: "Admin login successful"
+    });
+
     navigate("/admin/dashboard", { replace: true });
 
   } catch (error) {
     console.error("Admin login error:", error);
 
-    setMessage(
-      error.message === "Invalid login credentials"
-        ? "Incorrect email or password."
-        : error.message || "Unable to sign in. Please try again."
-    );
+    const msg = error.message === "Invalid login credentials"
+      ? "Incorrect email or password."
+      : error.message || "Unable to sign in. Please try again.";
+
+    setMessage(msg);
+    notify(msg, "error", { title: "Login failed" });
 
   } finally {
     setLoading(false);
   }
 };
+
 
 
   return (

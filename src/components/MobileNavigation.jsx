@@ -7,15 +7,16 @@ import {
   BookOpen,
   FolderOpen,
   CalendarDays,
-  UserRound
+  UserRound,
+  Bell
 } from "lucide-react";
 
 const items = [
   { name: "Home", path: "/home", icon: LayoutDashboard },
   { name: "Courses", path: "/courses", icon: BookOpen },
-  { name: "Resources", path: "/materials", icon: FolderOpen },
-  { name: "Events", path: "/events", icon: CalendarDays },
-  { name: "Profile", path: "/profile", icon: UserRound }
+  { name: "Announcements", path: "/announcements" , icon: Bell },
+  { name: "Schedule", path: "/schedule" , icon: CalendarDays},
+  { name: "Profile", path: "/profile", icon: UserRound },
 ];
 
 export default function MobileNavigation() {
@@ -44,7 +45,7 @@ export default function MobileNavigation() {
               {({ isActive }) => (
                 <>
                   <div className={`
-                    px-4 py-1 rounded-full
+                    px-4 py-1 rounded-full 
                     ${isActive ? "bg-[#E4F2EF]" : ""}
                   `}>
                     <Icon size={19} />

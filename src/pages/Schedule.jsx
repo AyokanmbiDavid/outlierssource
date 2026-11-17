@@ -1,182 +1,254 @@
 
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  CalendarDays,
-  ChevronLeft,
-  ChevronRight,
-  Clock3,
-  MapPin,
-  BookOpen,
-  ClipboardList,
-  GraduationCap,
-  CalendarCheck,
-  Plus,
+  CalendarDays, ChevronLeft, ChevronRight, Clock3, MapPin,
+  BookOpen, GraduationCap, CalendarCheck, RefreshCw,
+  AlertCircle, CalendarRange
 } from "lucide-react";
+import { supabase } from "../services/supabase";
 
-const events = [
-  {
-    id: 1,
-    title: "COS 101 Lecture",
-    type: "Class",
-    date: "2026-11-16",
-    time: "09:00 AM",
-    end: "11:00 AM",
-    location: "Lecture Hall A",
-    color: "teal",
-  },
-  {
-    id: 2,
-    title: "MTH 101 Tutorial",
-    type: "Tutorial",
-    date: "2026-11-16",
-    time: "12:00 PM",
-    end: "01:00 PM",
-    location: "Room 204",
-    color: "blue",
-  },
-  {
-    id: 3,
-    title: "STA 101 Lecture",
-    type: "Class",
-    date: "2026-11-17",
-    time: "10:00 AM",
-    end: "12:00 PM",
-    location: "Lecture Hall B",
-    color: "teal",
-  },
-  {
-    id: 4,
-    title: "COS 103 Assignment",
-    type: "Deadline",
-    date: "2026-11-18",
-    time: "11:59 PM",
-    end: "",
-    location: "Online submission",
-    color: "orange",
-  },
-  {
-    id: 5,
-    title: "Departmental Seminar",
-    type: "Event",
-    date: "2026-11-20",
-    time: "02:00 PM",
-    end: "04:00 PM",
-    location: "Faculty Auditorium",
-    color: "purple",
-  },
-  {
-    id: 6,
-    title: "GST 111 Lecture",
-    type: "Class",
-    date: "2026-11-23",
-    time: "08:00 AM",
-    end: "10:00 AM",
-    location: "Lecture Hall C",
-    color: "teal",
-  },
-  {
-    id: 7,
-    title: "COS 101 Test",
-    type: "Assessment",
-    date: "2026-11-25",
-    time: "10:00 AM",
-    end: "11:00 AM",
-    location: "Computer Lab",
-    color: "red",
-  },
-];
+const weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-const colorStyles = {
-  teal: "bg-[#E4F2EF] text-[#176D68]",
-  blue: "bg-blue-50 text-blue-700",
-  orange: "bg-orange-50 text-orange-700",
-  purple: "bg-purple-50 text-purple-700",
-  red: "bg-red-50 text-red-700",
+const formatDate = (date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 };
 
-const eventIcons = {
-  Class: BookOpen,
-  Tutorial: GraduationCap,
-  Deadline: ClipboardList,
-  Event: CalendarDays,
-  Assessment: CalendarCheck,
-};
-
-function formatDate(date) {
-  return date.toISOString().split("T")[0];
-}
-
-function formatLongDate(date) {
-  return date.toLocaleDateString("en-US", {
+const formatLongDate = (date) =>
+  date.toLocaleDateString("en-US", {
     weekday: "long",
     day: "numeric",
     month: "long",
-    year: "numeric",
+    year: "numeric"
   });
-}
+
+const normalizeDay = (day = "") => {
+  const value = day.toLowerCase().trim();
+  return weekdays.find((item) => item.toLowerCase() === value) ||
+    weekdays.find((item) => item.toLowerCase().startsWith(value.slice(0, 3))) ||
+    null;
+};
+
+const formatTime = (time) => {
+  if (!time) return "Time not set";
+  const [hours, minutes] = time.split(":");
+  const date = new Date();
+  date.setHours(Number(hours), Number(minutes), 0, 0);
+  return date.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true
+  });
+};
+
+const timeToMinutes = (time = "00:00") => {
+  const [hours, minutes] = time.split(":").map(Number);
+  return hours * 60 + minutes;
+};
 
 export default function Schedule() {
   const today = new Date();
+  const todayString = formatDate(today);
 
   const [currentMonth, setCurrentMonth] = useState(
     new Date(today.getFullYear(), today.getMonth(), 1)
   );
+  const [selectedDate, setSelectedDate] = useState(todayString);
+  const [classes, setClasses] = useState([]);
+  const [courses, setCourses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState("");
 
-  const [selectedDate, setSelectedDate] = useState(formatDate(today));
+  // Fetch every course and every timetable entry.
+  const fetchTimetable = useCallback(async (manual = false) => {
+    try {
+      if (manual) setRefreshing(true);
+      else setLoading(true);
+
+      setError("");
+
+      const [coursesResult, timetableResult] = await Promise.all([
+        supabase
+          .from("courses")
+          .select("id, course_name, course_code, department, course_type, credit_units")
+          .order("course_code"),
+
+        supabase
+          .from("class_timetable")
+          .select("id, course_id, day_of_week, start_time, end_time, venue")
+      ]);
+
+      if (coursesResult.error) throw coursesResult.error;
+      if (timetableResult.error) throw timetableResult.error;
+
+      const allCourses = coursesResult.data || [];
+      const courseMap = new Map(
+        allCourses.map((course) => [course.id, course])
+      );
+
+      const mappedClasses = (timetableResult.data || [])
+        .map((item) => {
+          const course = courseMap.get(item.course_id);
+
+          if (!course) return null;
+
+          return {
+            ...item,
+            course_name: course.course_name,
+            course_code: course.course_code,
+            normalizedDay: normalizeDay(item.day_of_week)
+          };
+        })
+        .filter((item) => item && item.normalizedDay)
+        .sort((a, b) => {
+          const dayDifference =
+            weekdays.indexOf(a.normalizedDay) -
+            weekdays.indexOf(b.normalizedDay);
+
+          return dayDifference ||
+            timeToMinutes(a.start_time) - timeToMinutes(b.start_time);
+        });
+
+      setCourses(allCourses);
+      setClasses(mappedClasses);
+
+    } catch (err) {
+      console.error("Timetable fetch error:", err);
+      setError(err.message || "Unable to load the timetable.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  // Initial fetch and realtime updates.
+  useEffect(() => {
+    fetchTimetable();
+
+    const channel = supabase
+      .channel("student-timetable-live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "class_timetable" },
+        () => fetchTimetable()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "courses" },
+        () => fetchTimetable()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchTimetable]);
 
   const monthLabel = currentMonth.toLocaleDateString("en-US", {
     month: "long",
-    year: "numeric",
+    year: "numeric"
   });
 
   const calendarDays = useMemo(() => {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
-
     const firstDay = new Date(year, month, 1).getDay();
     const totalDays = new Date(year, month + 1, 0).getDate();
 
-    const days = [];
-
-    for (let i = 0; i < firstDay; i++) {
-      days.push(null);
-    }
-
-    for (let day = 1; day <= totalDays; day++) {
-      days.push(new Date(year, month, day));
-    }
-
-    return days;
+    return [
+      ...Array(firstDay).fill(null),
+      ...Array.from(
+        { length: totalDays },
+        (_, index) => new Date(year, month, index + 1)
+      )
+    ];
   }, [currentMonth]);
 
-  const selectedEvents = events.filter(
-    (event) => event.date === selectedDate
+  const selectedDateObject = new Date(`${selectedDate}T12:00:00`);
+  const selectedDay = weekdays[selectedDateObject.getDay()];
+
+  const selectedEvents = classes.filter(
+    (item) => item.normalizedDay === selectedDay
   );
 
-  const upcomingEvents = events
-    .filter((event) => event.date >= formatDate(today))
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .slice(0, 5);
+  // Generate occurrences for the next seven days.
+  const upcomingEvents = useMemo(() => {
+    const results = [];
+
+    for (let offset = 0; offset < 7; offset++) {
+      const date = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate() + offset
+      );
+
+      const day = weekdays[date.getDay()];
+
+      classes
+        .filter((item) => item.normalizedDay === day)
+        .forEach((item) => {
+          results.push({
+            ...item,
+            occurrenceDate: formatDate(date),
+            occurrenceLabel: date.toLocaleDateString("en-US", {
+              weekday: "short",
+              day: "numeric",
+              month: "short"
+            })
+          });
+        });
+    }
+
+    return results.sort((a, b) =>
+      a.occurrenceDate.localeCompare(b.occurrenceDate) ||
+      timeToMinutes(a.start_time) - timeToMinutes(b.start_time)
+    );
+  }, [classes]);
+
+  const todayClasses = classes.filter(
+    (item) => item.normalizedDay === weekdays[today.getDay()]
+  );
+
+  const activeDays = new Set(
+    classes.map((item) => item.normalizedDay)
+  ).size;
+
+  const hasEvent = (date) =>
+    classes.some(
+      (item) => item.normalizedDay === weekdays[date.getDay()]
+    );
 
   const changeMonth = (amount) => {
-    setCurrentMonth(
-      (previous) =>
-        new Date(
-          previous.getFullYear(),
-          previous.getMonth() + amount,
-          1
-        )
+    setCurrentMonth((previous) =>
+      new Date(previous.getFullYear(), previous.getMonth() + amount, 1)
     );
   };
 
-  const hasEvent = (date) =>
-    events.some((event) => event.date === formatDate(date));
+  const goToToday = () => {
+    setCurrentMonth(new Date(today.getFullYear(), today.getMonth(), 1));
+    setSelectedDate(todayString);
+  };
+
+  const openUpcomingClass = (event) => {
+    setSelectedDate(event.occurrenceDate);
+    const date = new Date(`${event.occurrenceDate}T12:00:00`);
+    setCurrentMonth(new Date(date.getFullYear(), date.getMonth(), 1));
+  };
+
+  const summaryCards = [
+    { label: "Weekly classes", value: classes.length, icon: CalendarDays },
+    { label: "Available courses", value: courses.length, icon: BookOpen },
+    { label: "Today's classes", value: todayClasses.length, icon: GraduationCap },
+    { label: "Active class days", value: activeDays, icon: CalendarCheck }
+  ];
 
   return (
     <div className="space-y-6 pb-6">
-      {/* Page heading */}
+
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-[#176D68] text-sm font-semibold mb-2">
@@ -185,325 +257,349 @@ export default function Schedule() {
           </div>
 
           <h1 className="text-2xl sm:text-3xl font-bold text-[#20302D]">
-            Schedule & Timetable
+            My Timetable
           </h1>
 
           <p className="text-sm text-[#81918B] mt-1">
-            Keep track of your classes, deadlines and academic activities.
+            View all courses and scheduled academic activities.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 bg-white rounded-2xl p-2 w-fit">
-          <span className="w-2 h-2 rounded-full bg-[#176D68]" />
-          <span className="text-sm font-semibold text-[#20302D]">
-            {today.toLocaleDateString("en-US", {
-              day: "numeric",
-              month: "short",
-              year: "numeric",
-            })}
-          </span>
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2 bg-white rounded-2xl p-3">
+            <span className="w-2 h-2 rounded-full bg-[#176D68]" />
+            <span className="text-sm font-semibold text-[#20302D]">
+              {today.toLocaleDateString("en-US", {
+                day: "numeric",
+                month: "short",
+                year: "numeric"
+              })}
+            </span>
+          </div>
+
+          <button
+            onClick={() => fetchTimetable(true)}
+            disabled={refreshing}
+            className="flex items-center gap-2 bg-[#176D68] text-white rounded-2xl px-4 py-3 text-sm font-semibold disabled:opacity-60"
+          >
+            <RefreshCw size={15} className={refreshing ? "animate-spin" : ""} />
+            Refresh
+          </button>
         </div>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {[
-          {
-            label: "Total events",
-            value: events.length,
-            icon: CalendarDays,
-          },
-          {
-            label: "Classes",
-            value: events.filter((e) => e.type === "Class").length,
-            icon: BookOpen,
-          },
-          {
-            label: "Deadlines",
-            value: events.filter((e) => e.type === "Deadline").length,
-            icon: ClipboardList,
-          },
-          {
-            label: "Assessments",
-            value: events.filter((e) => e.type === "Assessment").length,
-            icon: GraduationCap,
-          },
-        ].map((item) => {
-          const Icon = item.icon;
+      {/* Loading */}
+      {loading && (
+        <div className="bg-white rounded-3xl p-10 text-center">
+          <RefreshCw size={28} className="animate-spin text-[#176D68] mx-auto mb-3" />
+          <p className="text-sm text-[#81918B]">Loading timetable...</p>
+        </div>
+      )}
 
-          return (
-            <div
-              key={item.label}
-              className="bg-white rounded-2xl p-4 sm:p-5"
-            >
-              <div className="w-10 h-10 rounded-xl bg-[#E4F2EF] text-[#176D68] grid place-items-center mb-4">
-                <Icon size={20} />
-              </div>
-
-              <p className="text-2xl font-bold text-[#20302D]">
-                {item.value}
-              </p>
-
-              <p className="text-xs sm:text-sm text-[#81918B] mt-1">
-                {item.label}
-              </p>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Main content */}
-      <div className="grid grid-cols-1 xl:grid-cols-[1.5fr_1fr] gap-5">
-        {/* Calendar */}
-        <section className="bg-white rounded-3xl p-4 sm:p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="font-bold text-lg text-[#20302D]">
-                Academic calendar
-              </h2>
-              <p className="text-xs text-[#81918B] mt-1">
-                Select a date to view activities
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => changeMonth(-1)}
-                className="w-9 h-9 rounded-xl bg-[#F1F5F3] grid place-items-center text-[#20302D] hover:bg-[#E4F2EF]"
-                aria-label="Previous month"
-              >
-                <ChevronLeft size={19} />
-              </button>
-
-              <button
-                onClick={() => changeMonth(1)}
-                className="w-9 h-9 rounded-xl bg-[#F1F5F3] grid place-items-center text-[#20302D] hover:bg-[#E4F2EF]"
-                aria-label="Next month"
-              >
-                <ChevronRight size={19} />
-              </button>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between mb-5">
-            <h3 className="text-lg font-bold text-[#176D68]">
-              {monthLabel}
-            </h3>
-
+      {/* Error */}
+      {!loading && error && (
+        <div className="bg-red-50 border border-red-100 rounded-2xl p-4 flex items-start gap-3">
+          <AlertCircle size={20} className="text-red-600 shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-red-700">
+              Unable to load timetable
+            </p>
+            <p className="text-xs text-red-600 mt-1">{error}</p>
             <button
-              onClick={() => {
-                setCurrentMonth(
-                  new Date(today.getFullYear(), today.getMonth(), 1)
-                );
-                setSelectedDate(formatDate(today));
-              }}
-              className="text-xs font-semibold text-[#176D68] px-3 py-2 rounded-xl bg-[#E4F2EF]"
+              onClick={() => fetchTimetable(true)}
+              className="text-xs font-bold text-red-700 underline mt-2"
             >
-              Today
+              Try again
             </button>
           </div>
+        </div>
+      )}
 
-          <div className="grid grid-cols-7 mb-3">
-            {weekdays.map((day) => (
-              <div
-                key={day}
-                className="text-center text-xs font-semibold text-[#81918B] py-2"
-              >
-                {day}
-              </div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-7 gap-y-2">
-            {calendarDays.map((date, index) => {
-              if (!date) {
-                return <div key={`empty-${index}`} />;
-              }
-
-              const dateString = formatDate(date);
-              const isSelected = selectedDate === dateString;
-              const isToday = dateString === formatDate(today);
-              const containsEvent = hasEvent(date);
+      {!loading && !error && (
+        <>
+          {/* Summary cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {summaryCards.map((item) => {
+              const Icon = item.icon;
 
               return (
-                <button
-                  key={dateString}
-                  onClick={() => setSelectedDate(dateString)}
-                  className={`relative mx-auto w-9 h-9 sm:w-11 sm:h-11 rounded-2xl flex flex-col items-center justify-center text-sm transition-colors ${
-                    isSelected
-                      ? "bg-[#176D68] text-white font-bold"
-                      : isToday
-                      ? "bg-[#E4F2EF] text-[#176D68] font-bold"
-                      : "text-[#20302D] hover:bg-[#F1F5F3]"
-                  }`}
-                >
-                  {date.getDate()}
-
-                  {containsEvent && (
-                    <span
-                      className={`absolute bottom-1 w-1 h-1 rounded-full ${
-                        isSelected ? "bg-white" : "bg-[#176D68]"
-                      }`}
-                    />
-                  )}
-                </button>
+                <div key={item.label} className="bg-white rounded-2xl p-4 sm:p-5">
+                  <div className="w-10 h-10 rounded-xl bg-[#E4F2EF] text-[#176D68] grid place-items-center mb-4">
+                    <Icon size={20} />
+                  </div>
+                  <p className="text-2xl font-bold text-[#20302D]">{item.value}</p>
+                  <p className="text-xs sm:text-sm text-[#81918B] mt-1">{item.label}</p>
+                </div>
               );
             })}
           </div>
 
-          <div className="flex flex-wrap items-center gap-4 mt-6 pt-5 border-t border-[#F1F5F3]">
-            <div className="flex items-center gap-2 text-xs text-[#81918B]">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#176D68]" />
-              Scheduled activity
-            </div>
+          {/* Calendar and agenda */}
+          <div className="grid grid-cols-1 xl:grid-cols-[1.5fr_1fr] gap-5">
 
-            <div className="flex items-center gap-2 text-xs text-[#81918B]">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#E4F2EF]" />
-              Today
-            </div>
-          </div>
-        </section>
-
-        {/* Selected date agenda */}
-        <section className="bg-white rounded-3xl p-4 sm:p-6">
-          <div className="mb-5">
-            <h2 className="font-bold text-lg text-[#20302D]">
-              Daily agenda
-            </h2>
-
-            <p className="text-sm text-[#81918B] mt-1">
-              {formatLongDate(new Date(`${selectedDate}T12:00:00`))}
-            </p>
-          </div>
-
-          {selectedEvents.length > 0 ? (
-            <div className="space-y-3">
-              {selectedEvents.map((event) => {
-                const Icon = eventIcons[event.type] || CalendarDays;
-
-                return (
-                  <div
-                    key={event.id}
-                    className="p-4 rounded-2xl bg-[#F5F8F6]"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-white text-[#176D68] grid place-items-center shrink-0">
-                        <Icon size={19} />
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="font-semibold text-sm text-[#20302D]">
-                            {event.title}
-                          </h3>
-
-                          <span
-                            className={`text-[10px] px-2 py-1 rounded-full font-semibold ${
-                              colorStyles[event.color]
-                            }`}
-                          >
-                            {event.type}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-2 text-xs text-[#81918B] mt-3">
-                          <Clock3 size={14} />
-                          {event.time}
-                          {event.end && ` - ${event.end}`}
-                        </div>
-
-                        <div className="flex items-center gap-2 text-xs text-[#81918B] mt-2">
-                          <MapPin size={14} />
-                          {event.location}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="min-h-48 flex flex-col items-center justify-center text-center">
-              <div className="w-14 h-14 rounded-2xl bg-[#E4F2EF] text-[#176D68] grid place-items-center mb-3">
-                <CalendarCheck size={25} />
-              </div>
-
-              <h3 className="font-semibold text-[#20302D]">
-                No activities scheduled
-              </h3>
-
-              <p className="text-xs text-[#81918B] mt-1 max-w-[220px]">
-                There are no academic activities scheduled for this date.
-              </p>
-            </div>
-          )}
-        </section>
-      </div>
-
-      {/* Upcoming events */}
-      <section className="bg-white rounded-3xl p-4 sm:p-6">
-        <div className="flex items-center justify-between gap-3 mb-5">
-          <div>
-            <h2 className="font-bold text-lg text-[#20302D]">
-              Upcoming activities
-            </h2>
-            <p className="text-xs text-[#81918B] mt-1">
-              Your next academic commitments
-            </p>
-          </div>
-
-          <span className="text-xs font-semibold text-[#176D68] bg-[#E4F2EF] px-3 py-2 rounded-xl">
-            {upcomingEvents.length} upcoming
-          </span>
-        </div>
-
-        <div className="space-y-2">
-          {upcomingEvents.map((event) => {
-            const Icon = eventIcons[event.type] || CalendarDays;
-
-            return (
-              <button
-                key={event.id}
-                onClick={() => {
-                  setSelectedDate(event.date);
-                  setCurrentMonth(
-                    new Date(
-                      Number(event.date.slice(0, 4)),
-                      Number(event.date.slice(5, 7)) - 1,
-                      1
-                    )
-                  );
-                }}
-                className="w-full text-left flex items-center gap-3 p-3 sm:p-4 rounded-2xl hover:bg-[#F5F8F6] transition-colors"
-              >
-                <div className="w-12 h-12 rounded-2xl bg-[#E4F2EF] text-[#176D68] grid place-items-center shrink-0">
-                  <Icon size={21} />
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-sm text-[#20302D]">
-                    {event.title}
-                  </h3>
-
+            {/* Calendar */}
+            <section className="bg-white rounded-3xl p-4 sm:p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="font-bold text-lg text-[#20302D]">
+                    Academic calendar
+                  </h2>
                   <p className="text-xs text-[#81918B] mt-1">
-                    {new Date(`${event.date}T12:00:00`).toLocaleDateString(
-                      "en-US",
-                      { weekday: "short", day: "numeric", month: "short" }
-                    )}
-                    {" · "}
-                    {event.time}
+                    Select a date to view its classes
                   </p>
                 </div>
 
-                <ChevronRight
-                  size={18}
-                  className="text-[#81918B] shrink-0"
-                />
-              </button>
-            );
-          })}
-        </div>
-      </section>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => changeMonth(-1)}
+                    className="w-9 h-9 rounded-xl bg-[#F1F5F3] grid place-items-center text-[#20302D]"
+                    aria-label="Previous month"
+                  >
+                    <ChevronLeft size={19} />
+                  </button>
+                  <button
+                    onClick={() => changeMonth(1)}
+                    className="w-9 h-9 rounded-xl bg-[#F1F5F3] grid place-items-center text-[#20302D]"
+                    aria-label="Next month"
+                  >
+                    <ChevronRight size={19} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-lg font-bold text-[#176D68]">
+                  {monthLabel}
+                </h3>
+                <button
+                  onClick={goToToday}
+                  className="text-xs font-semibold text-[#176D68] px-3 py-2 rounded-xl bg-[#E4F2EF]"
+                >
+                  Today
+                </button>
+              </div>
+
+              <div className="grid grid-cols-7 mb-3">
+                {weekdays.map((day) => (
+                  <div
+                    key={day}
+                    className="text-center text-[10px] sm:text-xs font-semibold text-[#81918B] py-2"
+                  >
+                    {day.slice(0, 3)}
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-7 gap-y-2">
+                {calendarDays.map((date, index) => {
+                  if (!date) return <div key={`empty-${index}`} />;
+
+                  const dateString = formatDate(date);
+                  const isSelected = selectedDate === dateString;
+                  const isToday = dateString === todayString;
+                  const containsEvent = hasEvent(date);
+
+                  return (
+                    <button
+                      key={dateString}
+                      onClick={() => setSelectedDate(dateString)}
+                      className={`relative mx-auto w-9 h-9 sm:w-11 sm:h-11 rounded-2xl flex flex-col items-center justify-center text-sm transition-colors ${
+                        isSelected
+                          ? "bg-[#176D68] text-white font-bold"
+                          : isToday
+                          ? "bg-[#E4F2EF] text-[#176D68] font-bold"
+                          : "text-[#20302D] hover:bg-[#F1F5F3]"
+                      }`}
+                    >
+                      {date.getDate()}
+                      {containsEvent && (
+                        <span className={`absolute bottom-1 w-1 h-1 rounded-full ${
+                          isSelected ? "bg-white" : "bg-[#176D68]"
+                        }`} />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-4 mt-6 pt-5 border-t border-[#F1F5F3]">
+                <div className="flex items-center gap-2 text-xs text-[#81918B]">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#176D68]" />
+                  Scheduled classes
+                </div>
+                <div className="flex items-center gap-2 text-xs text-[#81918B]">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#E4F2EF]" />
+                  Today
+                </div>
+              </div>
+            </section>
+
+            {/* Daily agenda */}
+            <section className="bg-white rounded-3xl p-4 sm:p-6">
+              <div className="mb-5">
+                <h2 className="font-bold text-lg text-[#20302D]">
+                  Daily agenda
+                </h2>
+                <p className="text-sm text-[#81918B] mt-1">
+                  {formatLongDate(selectedDateObject)}
+                </p>
+              </div>
+
+              {selectedEvents.length > 0 ? (
+                <div className="space-y-3">
+                  {selectedEvents.map((item) => (
+                    <div key={item.id} className="p-4 rounded-2xl bg-[#F5F8F6]">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-white text-[#176D68] grid place-items-center shrink-0">
+                          <BookOpen size={19} />
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-bold text-sm text-[#20302D]">
+                            {item.course_code}
+                          </h3>
+                          <p className="text-xs text-[#81918B] mt-1">
+                            {item.course_name}
+                          </p>
+                          <div className="flex items-center gap-2 text-xs text-[#81918B] mt-3">
+                            <Clock3 size={14} />
+                            {formatTime(item.start_time)} – {formatTime(item.end_time)}
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-[#81918B] mt-2">
+                            <MapPin size={14} />
+                            {item.venue || "Venue not specified"}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="min-h-48 flex flex-col items-center justify-center text-center">
+                  <div className="w-14 h-14 rounded-2xl bg-[#E4F2EF] text-[#176D68] grid place-items-center mb-3">
+                    <CalendarCheck size={25} />
+                  </div>
+                  <h3 className="font-semibold text-[#20302D]">
+                    No classes scheduled
+                  </h3>
+                  <p className="text-xs text-[#81918B] mt-1 max-w-[220px]">
+                    There are no classes scheduled for this day.
+                  </p>
+                </div>
+              )}
+            </section>
+          </div>
+
+          {/* Upcoming classes */}
+          <section className="bg-white rounded-3xl p-4 sm:p-6">
+            <div className="flex items-center justify-between gap-3 mb-5">
+              <div>
+                <h2 className="font-bold text-lg text-[#20302D]">
+                  Upcoming classes
+                </h2>
+                <p className="text-xs text-[#81918B] mt-1">
+                  Your next seven days of academic activities
+                </p>
+              </div>
+              <span className="text-xs font-semibold text-[#176D68] bg-[#E4F2EF] px-3 py-2 rounded-xl whitespace-nowrap">
+                {upcomingEvents.length} classes
+              </span>
+            </div>
+
+            {upcomingEvents.length > 0 ? (
+              <div className="space-y-2">
+                {upcomingEvents.map((item, index) => (
+                  <button
+                    key={`${item.id}-${item.occurrenceDate}-${index}`}
+                    onClick={() => openUpcomingClass(item)}
+                    className="w-full text-left flex items-center gap-3 p-3 sm:p-4 rounded-2xl hover:bg-[#F5F8F6] transition-colors"
+                  >
+                    <div className="w-12 h-12 rounded-2xl bg-[#E4F2EF] text-[#176D68] grid place-items-center shrink-0">
+                      <BookOpen size={21} />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-sm text-[#20302D]">
+                        {item.course_code} · {item.course_name}
+                      </h3>
+                      <p className="text-xs text-[#81918B] mt-1">
+                        {item.occurrenceLabel} · {formatTime(item.start_time)}
+                      </p>
+                      <p className="text-xs text-[#81918B] mt-1">
+                        {item.venue || "Venue not specified"}
+                      </p>
+                    </div>
+
+                    <ChevronRight size={18} className="text-[#81918B] shrink-0" />
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-10">
+                <CalendarRange size={28} className="mx-auto text-[#176D68] mb-3" />
+                <p className="text-sm font-semibold text-[#20302D]">
+                  No upcoming classes
+                </p>
+                <p className="text-xs text-[#81918B] mt-1">
+                  There are no timetable entries for the next seven days.
+                </p>
+              </div>
+            )}
+          </section>
+
+          {/* All courses */}
+          <section className="bg-white rounded-3xl p-4 sm:p-6">
+            <div className="mb-4">
+              <h2 className="font-bold text-lg text-[#20302D]">
+                Available courses
+              </h2>
+              <p className="text-xs text-[#81918B] mt-1">
+                All courses currently available on OutliersSource
+              </p>
+            </div>
+
+            {courses.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {courses.map((course) => {
+                  const courseClasses = classes.filter(
+                    (item) => item.course_id === course.id
+                  );
+
+                  return (
+                    <div key={course.id} className="rounded-2xl bg-[#F5F8F6] p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-white text-[#176D68] grid place-items-center">
+                          <BookOpen size={19} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-[#20302D]">
+                            {course.course_code}
+                          </p>
+                          <p className="text-xs text-[#81918B] truncate">
+                            {course.course_name}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between mt-4">
+                        <span className="text-xs text-[#81918B]">
+                          {course.course_type || "Course"}
+                        </span>
+                        <span className="text-xs text-[#176D68] font-semibold">
+                          {courseClasses.length} weekly {courseClasses.length === 1 ? "class" : "classes"}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-[#81918B] text-center py-8">
+                No courses have been added yet.
+              </p>
+            )}
+          </section>
+        </>
+      )}
     </div>
   );
 }

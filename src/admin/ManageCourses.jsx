@@ -15,12 +15,14 @@ import {
   CheckCircle2,
   Filter,
 } from "lucide-react";
+import { useNotifications } from "../context/NotificationContext";
 
 import { supabase } from "../services/supabase";
 
 const emptyForm = { course_name: "", course_code: "", department: "", course_type: "Compulsory", credit_units: 2 };
 
 export default function ManageCourses() {
+  const { notify } = useNotifications();
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -34,26 +36,28 @@ export default function ManageCourses() {
   const [form, setForm] = useState(emptyForm);
 
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
 
   // FETCH COURSES
   const fetchCourses = async () => {
-    setLoading(true);
-    setError("");
+  setLoading(true);
+  setError("");
 
+  try {
     const { data, error } = await supabase
       .from("courses")
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (error) {
-      setError(error.message);
-    } else {
-      setCourses(data || []);
-    }
+    if (error) throw error;
 
+    setCourses(data || []);
+  } catch (error) {
+    setError(error.message);
+    notify(error.message, "error", { title: "Failed to load courses" });
+  } finally {
     setLoading(false);
-  };
+  }
+};
 
   useEffect(() => {
     fetchCourses();
@@ -141,7 +145,7 @@ export default function ManageCourses() {
 
     setSaving(true);
     setError("");
-    setSuccess("");
+    
 
     const courseData = {
       course_name: form.course_name.trim(),
@@ -178,12 +182,7 @@ export default function ManageCourses() {
       return;
     }
 
-    setSuccess(
-      editingCourse
-        ? "Course updated successfully."
-        : "Course added successfully."
-    );
-
+  
     setModalOpen(false);
     setForm(emptyForm);
     setEditingCourse(null);
@@ -195,31 +194,32 @@ export default function ManageCourses() {
 
   // DELETE COURSE
   const deleteCourse = async (course) => {
-    const confirmed = window.confirm(
-      `Delete ${course.course_name} (${course.course_code})?`
-    );
+  const confirmed = window.confirm(
+    `Delete ${course.course_name} (${course.course_code})?`
+  );
 
-    if (!confirmed) return;
+  if (!confirmed) return;
 
-    setError("");
-    setSuccess("");
-
+  try {
     const { error } = await supabase
       .from("courses")
       .delete()
       .eq("id", course.id);
 
-    if (error) {
-      setError(error.message);
-      return;
-    }
+    if (error) throw error;
 
-    setCourses((previous) =>
-      previous.filter((item) => item.id !== course.id)
-    );
+    setCourses(previous => previous.filter(item => item.id !== course.id));
 
-    setSuccess("Course deleted successfully.");
-  };
+    notify(`${course.course_name} was deleted successfully.`, "success", {
+      title: "Course deleted"
+    });
+
+  } catch (error) {
+    notify(error.message || "Unable to delete course.", "error", {
+      title: "Delete failed"
+    });
+  }
+};
 
   return (
     <div className="min-h-screen bg-[#F5F8F6] p-4 sm:p-6 lg:p-8">
@@ -255,13 +255,6 @@ export default function ManageCourses() {
         <div className="mb-5 flex items-center gap-2 rounded-xl bg-red-50 p-4 text-sm text-red-700">
           <AlertCircle size={18} />
           {error}
-        </div>
-      )}
-
-      {success && (
-        <div className="mb-5 flex items-center gap-2 rounded-xl bg-green-50 p-4 text-sm text-green-700">
-          <CheckCircle2 size={18} />
-          {success}
         </div>
       )}
 
@@ -515,11 +508,6 @@ export default function ManageCourses() {
               </button>
             </div>
 
-            {error && (
-              <div className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">
-                {error}
-              </div>
-            )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
 
