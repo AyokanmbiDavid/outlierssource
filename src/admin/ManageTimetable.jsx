@@ -175,7 +175,7 @@ export default function ManageTimetable() {
   const visibleSchedules = showAllDays ? filteredSchedules : daySchedules;
 
   return (
-    <div className="min-h-screen bg-[#F5F8F6] p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen bg-[#F5F8F6] p-3 lg:p-8">
       <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="mb-2 flex items-center gap-2 text-sm font-medium text-[#176D68]">

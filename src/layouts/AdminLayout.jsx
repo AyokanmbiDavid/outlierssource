@@ -13,7 +13,7 @@ const navigation = [
   { name: "Students", path: "/admin/students", icon: Users },
   { name: "Materials", path: "/admin/materials", icon: FileText },
   { name: "Announcements", path: "/admin/announcements", icon: Megaphone },
-  { name: "Courses", path: "/admin/classes", icon: BookOpen },
+  { name: "Courses", path: "/admin/courses" , icon: BookOpen },
   { name: "Timetable", path: "/admin/timetable", icon: CalendarDays }
 ];
 

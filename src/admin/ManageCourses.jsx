@@ -222,7 +222,7 @@ export default function ManageCourses() {
 };
 
   return (
-    <div className="min-h-screen bg-[#F5F8F6] p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen bg-[#F5F8F6] p-3 lg:p-8">
 
       {/* HEADER */}
       <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
